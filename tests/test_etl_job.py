@@ -23,7 +23,7 @@ class SparkETLTests(unittest.TestCase):
     def setUp(self):
         """Start Spark, define config and path to test data
         """
-        self.config = json.loads("""{"type1": [155138, 154992, 4550], "type2": [-48]}""")
+        self.config = json.loads('configs/etl_config.json')
         self.spark, *_ = start_spark()
         self.test_data_path = 'tests/test_data/'
 

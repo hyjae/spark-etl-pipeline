@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/humus-spark.iml" filepath="$PROJECT_DIR$/.idea/humus-spark.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/spark-etl-pipeline.iml" filepath="$PROJECT_DIR$/.idea/spark-etl-pipeline.iml" />
     </modules>
   </component>
 </project>

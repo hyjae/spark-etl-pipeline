@@ -23,13 +23,15 @@ http://spark.apache.org/docs/latest/submitting-applications.html
 
 """
 
-from pyspark.sql import Row
+import os
 from pyspark import SparkContext
+from pyspark.sql import Row
+from pyspark.sql.types import StringType
 from pyspark.sql.dataframe import DataFrame
 from pyspark.sql.column import Column, _to_java_column
-from pyspark.sql.functions import regexp_replace, split
 from pyspark.sql.functions import json_tuple, arrays_zip  # Spark >= 2.4
 from pyspark.sql.functions import from_utc_timestamp, unix_timestamp
+from pyspark.sql.functions import regexp_replace, split, substring, expr, element_at, lit
 
 from dependencies.spark import start_spark
 
@@ -144,6 +146,8 @@ def transform_data(log_data, category_data, types):
         log_data
         .transform(lambda df: select_default(df, types['default']))
         .transform(lambda df: union_all(df, select_type1(log_data, types['type1'])))
+        .transform(lambda df: union_all(df, select_type2(log_data, types['type2'])))
+        .transform(lambda df: union_all(df, select_type3(log_data, types['type3'])))
         .transform(adjust_timestamp_format)
         .transform(adjust_timezone)
         .transform(split_timestamp)
@@ -155,7 +159,7 @@ def transform_data(log_data, category_data, types):
 
 
 def select_default(df, *default):
-    """Select fields for default log format; 155138, 154992, 4550
+    """Select fields for default log format; 154992
 
     :param df: Input DataFrame
     :param default: A list of shopping_sites_id
@@ -163,26 +167,20 @@ def select_default(df, *default):
     """
     return (
         df
-        .filter(df.logtype.isin('login', 'purchase') & df.info.siteseq.isin(*default))
+        .filter(df.logtype.isin('login', 'purchase', 'cart') & df.info.siteseq.isin(*default))
         .select('maid', 'info.siteseq', 'userid', 'custid', 'timestamp', 'logtype',
-                json_tuple(df.custom, 'goodsCode', 'goodsName').alias('productCode', 'productName'))
+                json_tuple(df.custom, 'productCode', 'productName').alias('productCode', 'productName'))
         .withColumnRenamed('info.siteseq', 'siteseq')
-        .unionAll((
-            df
-            .filter(df.logtype.isin('cart') & df.info.siteseq.isin(*default))
-            .select('maid', 'info.siteseq', 'userid', 'custid', 'timestamp', 'logtype',
-                    json_tuple(df.custom, 'goodsCode', 'name').alias('productCode', 'productName'))
-            .withColumnRenamed('info.siteseq', 'siteseq')))
         .unionAll((
             df
             .filter(df.logtype.isin('view') & df.info.siteseq.isin(*default))
             .select('maid', 'info.siteseq', 'userid', 'custid', 'timestamp', 'logtype',
-                    json_tuple(df.custom, 'rb:productCode', 'tas:productName').alias('productCode', 'productName'))
+                    json_tuple(df.custom, 'rb:itemId', 'rb:itemName').alias('productCode', 'productName'))
             .withColumnRenamed('info.siteseq', 'siteseq'))))
 
 
 def select_type1(df, *type1):
-    """Select fields for default log format; -48
+    """Select fields for log format; -48
 
     :param df: Input DataFrame
     :param type1: A list of shopping_sites_id
@@ -204,7 +202,55 @@ def select_type1(df, *type1):
             df
             .filter(df.logtype.isin('view') & df.info.siteseq.isin(*type1))
             .select('maid', 'info.siteseq', 'userid', 'custid', 'timestamp', 'logtype',
-                    json_tuple(df.custom, 'rb:productCode', 'tas:productName').alias('productCode', 'productName'))
+                    json_tuple(df.custom, 'tas:productCode', 'og:title').alias('productCode', 'productName'))
+            .withColumnRenamed('info.siteseq', 'siteseq'))))
+
+
+def select_type2(df, *type2):
+    """Select fields for log format; 155138
+
+    :param df: Input DataFrame
+    :param type2: A list of shopping_sites_id
+    :return: Output DataFrame
+    """
+    stage_df = (
+        df
+        .filter(df.logtype.isin('view') & df.info.siteseq.isin(*type2))
+        .select('maid', 'info.siteseq', 'userid', 'custid', 'timestamp', 'logtype',
+                json_tuple(df.custom, 'og:url', 'og:title').alias('productCode', 'productName'))
+        .withColumnRenamed('info.siteseq', 'siteseq'))
+    stage_df = stage_df.withColumn('productCode', split(stage_df['productCode'], '/'))
+
+    return (
+        df
+        .filter(df.logtype.isin('login', 'purchase', 'cart') & df.info.siteseq.isin(*type2))
+        .select('maid', 'info.siteseq', 'userid', 'custid', 'timestamp', 'logtype',
+                json_tuple(df.custom, 'productCode', 'productName').alias('productCode', 'productName'))
+        .withColumnRenamed('info.siteseq', 'siteseq')
+        .unionAll((
+            stage_df.select('maid', 'siteseq', 'userid', 'custid', 'timestamp', 'logtype',
+                            element_at(stage_df.productCode, -1).alias('productCode'), 'productName')
+        )))
+
+
+def select_type3(df, *type3):
+    """Select fields for log format; 4550
+
+    :param df: Input DataFrame
+    :param type3: A list of shopping_sites_id
+    :return: Output DataFrame
+    """
+    return (
+        df
+        .filter(df.logtype.isin('login', 'purchase', 'cart') & df.info.siteseq.isin(*type3))
+        .select('maid', 'info.siteseq', 'userid', 'custid', 'timestamp', 'logtype',
+                json_tuple(df.custom, 'productCode', 'productName').alias('productCode', 'productName'))
+        .withColumnRenamed('info.siteseq', 'siteseq')
+        .unionAll((
+            df
+            .filter(df.logtype.isin('view') & df.info.siteseq.isin(*type3))
+            .select('maid', 'info.siteseq', 'userid', 'custid', 'timestamp', 'logtype',
+                    json_tuple(df.custom, 'tas:productCode', 'Title').alias('productCode', 'productName'))
             .withColumnRenamed('info.siteseq', 'siteseq'))))
 
 
@@ -308,17 +354,44 @@ def join_dfs(df1, df2):
     :param df2: category_info DataFrame
     :return: final result DataFrame
     """
-    stage_df = df1.join(df2, (df1.productCode == df2.item_code) & (df1.siteseq == df2.shopping_sites_id))
-    return (
-        stage_df
-        .select('maid', 'userid', 'custid', 'siteseq', 'transaction_date', 'transaction_time', 'logtype',
-                'item_code', 'item_name', 'category_name1', 'category_name2', 'category_name3', 'category_name4',
-                'intg_cat1', 'intg_cat2', 'intg_cat3', 'intg_cat4', 'intg_id')
+    # select only the ones that with a valid productCode + login data
+    stage_df = df1.join(df2, (df1.productCode == df2.item_code) & (df1.siteseq == df2.shopping_id))
+    login_df = (
+        df1
+        .filter(df1.logtype == 'login')
+        .select('maid', 'userid', 'custid', 'siteseq', 'transaction_date', 'transaction_time', 'logtype')
         .withColumnRenamed('maid', 'ma_id')
         .withColumnRenamed('userid', 'user_id')
         .withColumnRenamed('custid', 'cust_id')
-        .withColumnRenamed('siteseq', 'shopping_sites_id')
-        .withColumnRenamed('logtype', 'log_type'))
+        .withColumnRenamed('logtype', 'log_type')
+        .withColumnRenamed('siteseq', 'shopping_id')
+        .withColumn('ingt_id', lit(None).cast(StringType()))
+        .withColumn('item_code', lit(None).cast(StringType()))
+        .withColumn('item_name', lit(None).cast(StringType()))
+        .withColumn('cat1', lit(None).cast(StringType()))
+        .withColumn('cat2', lit(None).cast(StringType()))
+        .withColumn('cat3', lit(None).cast(StringType()))
+        .withColumn('cat4', lit(None).cast(StringType()))
+        .withColumn('intg_cat1', lit(None).cast(StringType()))
+        .withColumn('intg_cat2', lit(None).cast(StringType()))
+        .withColumn('intg_cat3', lit(None).cast(StringType()))
+        .withColumn('intg_cat4', lit(None).cast(StringType()))
+    )
+
+    return (
+        (
+            stage_df
+            .select('maid', 'userid', 'custid', 'siteseq', 'transaction_date', 'transaction_time',
+                    'logtype', 'intg_id', 'item_code', 'item_name', 'cat1', 'cat2', 'cat3', 'cat4',
+                    'intg_cat1', 'intg_cat2', 'intg_cat3', 'intg_cat4')
+            .withColumnRenamed('maid', 'ma_id')
+            .withColumnRenamed('userid', 'user_id')
+            .withColumnRenamed('custid', 'cust_id')
+            .withColumnRenamed('logtype', 'log_type')
+            .withColumnRenamed('siteseq', 'shopping_id')
+            .unionAll(login_df))
+        .withColumn('user_id', expr('substring(user_id, 1, 100)'))
+        .withColumn('cust_id', expr('substring(cust_id, 1, 100)')))
 
 
 def write_data(df, save_path):
@@ -350,47 +423,91 @@ def save_hdfs(df, save_path):
     return None
 
 
-def create_test_data(spark, config):
-    """Create test data.
+def run_test():
+    """Running test function
+
+    :return: None
+    """
+    # start Spark application and get Spark session, logger and config
+    spark, log, config = start_spark(
+        app_name='my_etl_test_job',
+        files=['configs/etl_config.json'])
+    create_test_data(spark)
+    spark.stop()
+
+    return None
+
+
+def test_transform(log_data, types):
+    """Test transform function
+
+    :param log_data: Input DataFrame
+    :param types: shopping_sites_id
+    :return: Output DataFrame
+    """
+    return (
+        log_data
+        .transform(lambda df: select_default(df, types['default']))
+        .transform(lambda df: union_all(df, select_type1(log_data, types['type1'])))
+        .transform(lambda df: union_all(df, select_type2(log_data, types['type2'])))
+        .transform(lambda df: union_all(df, select_type3(log_data, types['type3'])))
+        .transform(adjust_timestamp_format)
+        .transform(adjust_timezone)
+        .transform(split_timestamp)
+        .transform(remove_comma)
+        .transform(remove_quote)
+        .transform(explode_list)
+    )
+
+
+def create_test_data(spark):
+    """Create test data and run test_transform()
 
     This function creates both both pre- and post- transformation data
     saved as Parquet files in tests/test_data. This will be used for
     unit tests as well as to load as part of the example ETL job.
     :return: None
     """
+
     # create example data from scratch
     local_records = [
-        Row()
-    ]
-
-
-    local_records = [
-        Row(id=1, first_name='Dan', second_name='Germain', floor=1),
-        Row(id=2, first_name='Dan', second_name='Sommerville', floor=1),
-        Row(id=3, first_name='Alex', second_name='Ioannides', floor=2),
-        Row(id=4, first_name='Ken', second_name='Lai', floor=2),
-        Row(id=5, first_name='Stu', second_name='White', floor=3),
-        Row(id=6, first_name='Mark', second_name='Sweeting', floor=3),
-        Row(id=7, first_name='Phil', second_name='Bird', floor=4),
-        Row(id=8, first_name='Kim', second_name='Suter', floor=4)
+        Row(maid='test_maid1', info=Row(siteseq='4550'), userid='uid-1', custid='cid-1',
+            timestamp='2019-06-01T01:43:09.000Z', logtype='purchase',
+            custom='{"goodsCode": ["4550-pc1"], "goodsName": ["4550-pn1"]}'),
+        Row(maid='test_maid2', info=Row(siteseq='155138'), userid='uid-2', custid='cid-2',
+            timestamp='2019-06-01T01:43:09.000Z', logtype='purchase',
+            custom='{"goodsCode": ["155138-pc1"], "goodsName": ["155138-pn1"]}'),
+        Row(maid='test_maid3', info=Row(siteseq='-48'), userid='uid-3', custid='cid-3',
+            timestamp='2019-06-01T01:43:09.000Z', logtype='purchase',
+            custom='{"goodsCode": ["-48-pc1", "-48-pc2"], "goodsName":["-48-pn1", "-48-pn2"]}'),
+        Row(maid='test_maid4', info=Row(siteseq='155138'), userid='uid-4', custid='cid-4',
+            timestamp='2019-06-01T01:43:09.000Z', logtype='purchase',
+            custom='{"goodsCode": ["155138-pc1"], "goodsName": ["155138-pn1"]}')
     ]
 
     df = spark.createDataFrame(local_records)
+    base_dir = os.path.dirname(os.path.dirname(__file__))
 
     # write to Parquet file format
     (df
      .coalesce(1)
      .write
-     .parquet('tests/test_data/employees', mode='overwrite'))
+     .parquet(os.path.join(base_dir, 'tests/test_data/test_logs'), mode='overwrite'))
 
     # create transformed version of data
-    df_tf = transform_data(df, config['steps_per_floor'])
+    types = {
+        "default": [154992],
+        "type1": [-48],
+        "type2": [155138],
+        "type3": [4550]
+    }
+    df_tf = test_transform(df, types)
 
     # write transformed version of data to Parquet
     (df_tf
      .coalesce(1)
      .write
-     .parquet('tests/test_data/employees_report', mode='overwrite'))
+     .parquet(os.path.join(base_dir, 'tests/test_data/test_logs.comp'), mode='overwrite'))
 
     return None
 

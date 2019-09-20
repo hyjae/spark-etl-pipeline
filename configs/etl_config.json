@@ -1,33 +1,31 @@
 {
 	"transform": {
-		"default": [
-			155138, 154992, 4550
-		],
-		"type1": [
-			-48
-		]
+		"default": [154992],
+		"type1": [-48],
+		"type2": [155138],
+		"type3": [4550]
 	},
 	"mysql": {
 		"insert": true,
 		"load": {
-			"url": "jdbc:mysql://192.168.210.143:3306/humuson?serverTimezone=Asia/Seoul",
+			"url": "jdbc:mysql://192.168.210.143:3306/database?serverTimezone=Asia/Seoul",
 			"driver": "com.mysql.cj.jdbc.Driver",
-			"dbtable": "temp_ep_map_info",
-			"user": "ds",
+			"dbtable": "ep_info",
+			"user": "user",
 			"password": "password"
 		},
 		"save": {
-			"url": "jdbc:mysql://192.168.210.143:3306/humuson?serverTimezone=Asia/Seoul",
+			"url": "jdbc:mysql://192.168.210.143:3306/database?serverTimezone=Asia/Seoul",
 			"driver": "com.mysql.cj.jdbc.Driver",
-			"dbtable": "temp_final_format_table",
-			"user": "ds",
+			"dbtable": "etl_result",
+			"user": "user",
 			"password": "password"
 		}
 	},
 	"file": {
 		"write": false,
 		"load": {
-			"path": "tests/test_data/humuson_logs/yyyymmdd=20190601/*.parquet"
+			"path": "tests/test_data/humuson_logs/*.parquet"
 		},
 		"save": {
 			"path": "loaded_data"
