@@ -349,6 +349,33 @@ def explode_list(df):
     )
 
 
+def select_valid_id(df):
+    """Use maid as userid if userid doesn't exist
+
+    :param df: Input DataFrame
+    :return: Output DataFrame
+    """
+    return (
+        df
+        .filter(df.userid.isNull())
+        .select('maid', 'siteseq', 'transaction_date', 'transaction_time', 'logtype', 'productCode', 'productName')
+        .withColumnRenamed('maid', 'userid')
+    ).unionAll(
+        df.filter(df.userid.isNotNull())
+        .select('userid', 'siteseq', 'transaction_date', 'transaction_time', 'logtype', 'productCode', 'productName'))
+
+
+def drop_duplicates(df):
+    """Drop duplicate rows
+
+    :param df: Input DataFrame
+    :return: Output DataFrame
+    """
+    return (
+        df.dropDuplicates()
+    )
+
+
 def join_dfs(df1, df2):
     """Join two dfs on keys and select fields needed
 
@@ -393,33 +420,6 @@ def join_dfs(df1, df2):
             .withColumnRenamed('SITESEQ', 'SHOPPING_ID')
             .unionAll(login_df))
         .withColumn('USER_ID', expr('substring(USER_ID, 1, 100)')))
-
-
-def select_valid_id(df):
-    """Use maid as userid if userid doesn't exist
-
-    :param df: Input DataFrame
-    :return: Output DataFrame
-    """
-    return (
-        df
-        .filter(df.userid.isNull())
-        .select('maid', 'siteseq', 'transaction_date', 'transaction_time', 'logtype', 'productCode', 'productName')
-        .withColumnRenamed('maid', 'userid')
-    ).unionAll(
-        df.filter(df.userid.isNotNull())
-        .select('userid', 'siteseq', 'transaction_date', 'transaction_time', 'logtype', 'productCode', 'productName'))
-
-
-def drop_duplicates(df):
-    """Drop duplicate rows
-
-    :param df: Input DataFrame
-    :return: Output DataFrame
-    """
-    return (
-        df.dropDuplicates()
-    )
 
 
 def write_data(df, save_path):
