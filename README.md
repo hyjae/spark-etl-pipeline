@@ -15,11 +15,6 @@ Make sure that you're in the project's root directory (the same one in which the
 pipenv install --dev
 ```
 
-
-```bash
-pipevn run python script.py
-```
-
 ### Run a Program
 
 stand-alone
