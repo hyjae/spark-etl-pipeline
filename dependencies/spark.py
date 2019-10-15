@@ -90,10 +90,18 @@ def start_spark(app_name='my_spark_app', master='local[*]', jar_packages=[],
 
     # get config file if sent to cluster with --files
     spark_files_dir = SparkFiles.getRootDirectory()
+    spark_logger.warn('spark_files_dir' + str(spark_files_dir))
+
+    for filename in listdir(spark_files_dir):
+        spark_logger.warn('filename' + str(filename))
+
+    config_f = SparkFiles.get('configs/etl_config.json')
+    spark_logger.warn('config_f' + str(config_f))
+
     config_files = [filename
                     for filename in listdir(spark_files_dir)
                     if filename.endswith('config.json')]
-
+    spark_logger.warn('config_files' + str(config_files))
     if config_files:
         path_to_config_file = path.join(spark_files_dir, config_files[0])
         with open(path_to_config_file, 'r') as config_file:

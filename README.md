@@ -15,8 +15,14 @@ Make sure that you're in the project's root directory (the same one in which the
 pipenv install --dev
 ```
 
+
+```bash
+pipevn run python script.py
+```
+
 ### Run a Program
 
+stand-alone
 ```bash
 $SPARK_HOME/bin/spark-submit \
 --master spark://192.168.210.147:7077 \
@@ -24,5 +30,17 @@ $SPARK_HOME/bin/spark-submit \
 --packages mysql:mysql-connector-java:8.0.15 \
 --files configs/etl_config.json \
 --executor-memory 25g \
+jobs/etl_job.py
+```
+
+yarn
+```bash
+$SPARK_HOME/bin/spark-submit \
+--master yarn \
+--driver-memory 4g \
+--executor-memory 20g \ 
+--py-files packages.zip \
+--packages mysql:mysql-connector-java:8.0.15 \
+--files configs/etl_config.json \
 jobs/etl_job.py
 ```

@@ -8,24 +8,24 @@
 	"mysql": {
 		"insert": true,
 		"load": {
-			"url": "jdbc:mysql://192.168.210.143:3306/database?serverTimezone=Asia/Seoul",
+			"url": "jdbc:mysql://192.168.210.143:3306/test_rec_system?serverTimezone=Asia/Seoul",
 			"driver": "com.mysql.cj.jdbc.Driver",
 			"dbtable": "ep_info",
-			"user": "user",
-			"password": "password"
+			"user": "ds",
+			"password": "Opensns!#@$1"
 		},
 		"save": {
-			"url": "jdbc:mysql://192.168.210.143:3306/database?serverTimezone=Asia/Seoul",
+			"url": "jdbc:mysql://192.168.210.143:3306/test_rec_system?serverTimezone=Asia/Seoul",
 			"driver": "com.mysql.cj.jdbc.Driver",
 			"dbtable": "etl_result",
-			"user": "user",
-			"password": "password"
+			"user": "ds",
+			"password": "Opensns!#@$1"
 		}
 	},
 	"file": {
 		"write": false,
 		"load": {
-			"path": "tests/test_data/humuson_logs/*.parquet"
+			"path": "hdfs:////humus/yyyymm=201906/*.parquet"
 		},
 		"save": {
 			"path": "loaded_data"

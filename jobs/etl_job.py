@@ -154,6 +154,8 @@ def transform_data(log_data, category_data, types):
         .transform(remove_comma)
         .transform(remove_quote)
         .transform(explode_list)
+        .transform(select_valid_id)
+        .transform(drop_duplicates)
         .transform(lambda df: join_dfs(df, category_data))
     )
 
@@ -168,13 +170,13 @@ def select_default(df, *default):
     return (
         df
         .filter(df.logtype.isin('login', 'purchase', 'cart') & df.info.siteseq.isin(*default))
-        .select('maid', 'info.siteseq', 'userid', 'custid', 'timestamp', 'logtype',
+        .select('maid', 'info.siteseq', 'userid', 'timestamp', 'logtype',
                 json_tuple(df.custom, 'productCode', 'productName').alias('productCode', 'productName'))
         .withColumnRenamed('info.siteseq', 'siteseq')
         .unionAll((
             df
             .filter(df.logtype.isin('view') & df.info.siteseq.isin(*default))
-            .select('maid', 'info.siteseq', 'userid', 'custid', 'timestamp', 'logtype',
+            .select('maid', 'info.siteseq', 'userid', 'timestamp', 'logtype',
                     json_tuple(df.custom, 'rb:itemId', 'rb:itemName').alias('productCode', 'productName'))
             .withColumnRenamed('info.siteseq', 'siteseq'))))
 
@@ -189,19 +191,19 @@ def select_type1(df, *type1):
     return (
         df
         .filter(df.logtype.isin('login', 'purchase') & df.info.siteseq.isin(*type1))
-        .select('maid', 'info.siteseq', 'userid', 'custid', 'timestamp', 'logtype',
+        .select('maid', 'info.siteseq', 'userid', 'timestamp', 'logtype',
                 json_tuple(df.custom, 'goodsCode', 'goodsName').alias('productCode', 'productName'))
         .withColumnRenamed('info.siteseq', 'siteseq')
         .unionAll((
             df
             .filter(df.logtype.isin('cart') & df.info.siteseq.isin(*type1))
-            .select('maid', 'info.siteseq', 'userid', 'custid', 'timestamp', 'logtype',
+            .select('maid', 'info.siteseq', 'userid', 'timestamp', 'logtype',
                     json_tuple(df.custom, 'goodsCode', 'name').alias('productCode', 'productName'))
             .withColumnRenamed('info.siteseq', 'siteseq')))
         .unionAll((
             df
             .filter(df.logtype.isin('view') & df.info.siteseq.isin(*type1))
-            .select('maid', 'info.siteseq', 'userid', 'custid', 'timestamp', 'logtype',
+            .select('maid', 'info.siteseq', 'userid', 'timestamp', 'logtype',
                     json_tuple(df.custom, 'tas:productCode', 'og:title').alias('productCode', 'productName'))
             .withColumnRenamed('info.siteseq', 'siteseq'))))
 
@@ -216,7 +218,7 @@ def select_type2(df, *type2):
     stage_df = (
         df
         .filter(df.logtype.isin('view') & df.info.siteseq.isin(*type2))
-        .select('maid', 'info.siteseq', 'userid', 'custid', 'timestamp', 'logtype',
+        .select('maid', 'info.siteseq', 'userid', 'timestamp', 'logtype',
                 json_tuple(df.custom, 'og:url', 'og:title').alias('productCode', 'productName'))
         .withColumnRenamed('info.siteseq', 'siteseq'))
     stage_df = stage_df.withColumn('productCode', split(stage_df['productCode'], '/'))
@@ -224,11 +226,11 @@ def select_type2(df, *type2):
     return (
         df
         .filter(df.logtype.isin('login', 'purchase', 'cart') & df.info.siteseq.isin(*type2))
-        .select('maid', 'info.siteseq', 'userid', 'custid', 'timestamp', 'logtype',
+        .select('maid', 'info.siteseq', 'userid', 'timestamp', 'logtype',
                 json_tuple(df.custom, 'productCode', 'productName').alias('productCode', 'productName'))
         .withColumnRenamed('info.siteseq', 'siteseq')
         .unionAll((
-            stage_df.select('maid', 'siteseq', 'userid', 'custid', 'timestamp', 'logtype',
+            stage_df.select('maid', 'siteseq', 'userid', 'timestamp', 'logtype',
                             element_at(stage_df.productCode, -1).alias('productCode'), 'productName')
         )))
 
@@ -243,13 +245,13 @@ def select_type3(df, *type3):
     return (
         df
         .filter(df.logtype.isin('login', 'purchase', 'cart') & df.info.siteseq.isin(*type3))
-        .select('maid', 'info.siteseq', 'userid', 'custid', 'timestamp', 'logtype',
+        .select('maid', 'info.siteseq', 'userid', 'timestamp', 'logtype',
                 json_tuple(df.custom, 'productCode', 'productName').alias('productCode', 'productName'))
         .withColumnRenamed('info.siteseq', 'siteseq')
         .unionAll((
             df
             .filter(df.logtype.isin('view') & df.info.siteseq.isin(*type3))
-            .select('maid', 'info.siteseq', 'userid', 'custid', 'timestamp', 'logtype',
+            .select('maid', 'info.siteseq', 'userid', 'timestamp', 'logtype',
                     json_tuple(df.custom, 'tas:productCode', 'Title').alias('productCode', 'productName'))
             .withColumnRenamed('info.siteseq', 'siteseq'))))
 
@@ -299,7 +301,7 @@ def split_timestamp(df):
     stage_df = df.withColumn('split_timestamp', split(df['timestamp'], ' '))
     return (
         stage_df
-        .select('maid', 'siteseq', 'userid', 'custid', 'logtype', stage_df['split_timestamp']
+        .select('maid', 'siteseq', 'userid', 'logtype', stage_df['split_timestamp']
                 .getItem(0).alias('transaction_date'), stage_df['split_timestamp']
                 .getItem(1).alias('transaction_time'), 'productCode', 'productName'))
 
@@ -340,7 +342,7 @@ def explode_list(df):
         df
         .withColumn('tmp', arrays_zip('productCode', 'productName'))
         .withColumn('tmp', explode_outer('tmp'))
-        .select('maid', 'siteseq', 'userid', 'custid', 'transaction_date', 'transaction_time',
+        .select('maid', 'siteseq', 'userid', 'transaction_date', 'transaction_time',
                 'logtype', 'tmp.productCode', 'tmp.productName')
         .withColumnRenamed('tmp.productCode', 'productCode')
         .withColumnRenamed('tmp.productName', 'productName')
@@ -352,46 +354,72 @@ def join_dfs(df1, df2):
 
     :param df1: log_data DataFrame
     :param df2: category_info DataFrame
-    :return: final result DataFrame
+    :return: Final result DataFrame
     """
+    # column rename lower -> upper
+    for column in df1.columns:
+        df1 = df1.withColumnRenamed(column, column.upper())
+
     # select only the ones that with a valid productCode + login data
-    stage_df = df1.join(df2, (df1.productCode == df2.item_code) & (df1.siteseq == df2.shopping_id))
+    stage_df = df1.join(df2, (df1.PRODUCTCODE == df2.ITEM_CODE) & (df1.SITESEQ == df2.SHOPPING_ID))
     login_df = (
         df1
-        .filter(df1.logtype == 'login')
-        .select('maid', 'userid', 'custid', 'siteseq', 'transaction_date', 'transaction_time', 'logtype')
-        .withColumnRenamed('maid', 'ma_id')
-        .withColumnRenamed('userid', 'user_id')
-        .withColumnRenamed('custid', 'cust_id')
-        .withColumnRenamed('logtype', 'log_type')
-        .withColumnRenamed('siteseq', 'shopping_id')
-        .withColumn('ingt_id', lit(None).cast(StringType()))
-        .withColumn('item_code', lit(None).cast(StringType()))
-        .withColumn('item_name', lit(None).cast(StringType()))
-        .withColumn('cat1', lit(None).cast(StringType()))
-        .withColumn('cat2', lit(None).cast(StringType()))
-        .withColumn('cat3', lit(None).cast(StringType()))
-        .withColumn('cat4', lit(None).cast(StringType()))
-        .withColumn('intg_cat1', lit(None).cast(StringType()))
-        .withColumn('intg_cat2', lit(None).cast(StringType()))
-        .withColumn('intg_cat3', lit(None).cast(StringType()))
-        .withColumn('intg_cat4', lit(None).cast(StringType()))
+        .filter(df1.LOGTYPE == 'login')
+        .select('USERID', 'SITESEQ', 'TRANSACTION_DATE', 'TRANSACTION_TIME', 'LOGTYPE')
+        .withColumnRenamed('USERID', 'USER_ID')
+        .withColumnRenamed('SITESEQ', 'SHOPPING_ID')
+        .withColumnRenamed('LOGTYPE', 'LOG_TYPE')
+        .withColumn('ITEM_CODE', lit(None).cast(StringType()))
+        .withColumn('INTG_ID', lit(None).cast(StringType()))
+        .withColumn('ITEM_NAME', lit(None).cast(StringType()))
+        .withColumn('CAT1', lit(None).cast(StringType()))
+        .withColumn('CAT2', lit(None).cast(StringType()))
+        .withColumn('CAT3', lit(None).cast(StringType()))
+        .withColumn('CAT4', lit(None).cast(StringType()))
+        .withColumn('INTG_CAT1', lit(None).cast(StringType()))
+        .withColumn('INTG_CAT2', lit(None).cast(StringType()))
+        .withColumn('INTG_CAT3', lit(None).cast(StringType()))
+        .withColumn('INTG_CAT4', lit(None).cast(StringType()))
     )
 
     return (
         (
             stage_df
-            .select('maid', 'userid', 'custid', 'siteseq', 'transaction_date', 'transaction_time',
-                    'logtype', 'intg_id', 'item_code', 'item_name', 'cat1', 'cat2', 'cat3', 'cat4',
-                    'intg_cat1', 'intg_cat2', 'intg_cat3', 'intg_cat4')
-            .withColumnRenamed('maid', 'ma_id')
-            .withColumnRenamed('userid', 'user_id')
-            .withColumnRenamed('custid', 'cust_id')
-            .withColumnRenamed('logtype', 'log_type')
-            .withColumnRenamed('siteseq', 'shopping_id')
+            .select('USERID', 'SITESEQ', 'TRANSACTION_DATE', 'TRANSACTION_TIME',
+                    'LOGTYPE', 'INTG_ID', 'ITEM_CODE', 'ITEM_NAME', 'CAT1', 'CAT2', 'CAT3', 'CAT4',
+                    'INTG_CAT1', 'INTG_CAT2', 'INTG_CAT3', 'INTG_CAT4')
+            .withColumnRenamed('USERID', 'USER_ID')
+            .withColumnRenamed('LOGTYPE', 'LOG_TYPE')
+            .withColumnRenamed('SITESEQ', 'SHOPPING_ID')
             .unionAll(login_df))
-        .withColumn('user_id', expr('substring(user_id, 1, 100)'))
-        .withColumn('cust_id', expr('substring(cust_id, 1, 100)')))
+        .withColumn('USER_ID', expr('substring(USER_ID, 1, 100)')))
+
+
+def select_valid_id(df):
+    """Use maid as userid if userid doesn't exist
+
+    :param df: Input DataFrame
+    :return: Output DataFrame
+    """
+    return (
+        df
+        .filter(df.userid.isNull())
+        .select('maid', 'siteseq', 'transaction_date', 'transaction_time', 'logtype', 'productCode', 'productName')
+        .withColumnRenamed('maid', 'userid')
+    ).unionAll(
+        df.filter(df.userid.isNotNull())
+        .select('userid', 'siteseq', 'transaction_date', 'transaction_time', 'logtype', 'productCode', 'productName'))
+
+
+def drop_duplicates(df):
+    """Drop duplicate rows
+
+    :param df: Input DataFrame
+    :return: Output DataFrame
+    """
+    return (
+        df.dropDuplicates()
+    )
 
 
 def write_data(df, save_path):
