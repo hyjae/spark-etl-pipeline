@@ -66,7 +66,7 @@ def main():
     if db_insert:
         insert_data(data_transformed, save_db_info)
     if file_write:
-        write_data(data_transformed, save_path)
+        save_hdfs(data_transformed, save_path)
 
     # log the success and terminate Spark application
     log.warn('test_etl_job is finished')
@@ -372,7 +372,7 @@ def drop_duplicates(df):
     :return: Output DataFrame
     """
     return (
-        df.dropDuplicates()
+        df.dropDuplicates(['userid', 'siteseq', 'transaction_date', 'transaction_time', 'logtype', 'productCode'])
     )
 
 
