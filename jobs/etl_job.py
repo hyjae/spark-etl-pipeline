@@ -57,8 +57,10 @@ def main():
     save_db_info = config['mysql']['save']
     save_path = config['file']['save']['path']
     types = config['transform']
+    print(load_path)
 
     # execute ETL pipeline
+
     log_data = extract_data(spark, load_path)
     category_data = extract_data_from_db(spark, load_db_info)
     data_transformed = transform_data(log_data, category_data, types)
@@ -155,8 +157,8 @@ def transform_data(log_data, category_data, types):
         .transform(remove_quote)
         .transform(explode_list)
         .transform(select_valid_id)
-        .transform(drop_duplicates)
         .transform(lambda df: join_dfs(df, category_data))
+        .transform(drop_duplicates)
     )
 
 
@@ -372,7 +374,7 @@ def drop_duplicates(df):
     :return: Output DataFrame
     """
     return (
-        df.dropDuplicates(['userid', 'siteseq', 'transaction_date', 'transaction_time', 'logtype', 'productCode'])
+        df.dropDuplicates()
     )
 
 
@@ -388,7 +390,7 @@ def join_dfs(df1, df2):
         df1 = df1.withColumnRenamed(column, column.upper())
 
     # select only the ones that with a valid productCode + login data
-    stage_df = df1.join(df2, (df1.PRODUCTCODE == df2.ITEM_CODE) & (df1.SITESEQ == df2.SHOPPING_ID))
+    stage_df = df1.join(df2, (df1.SITESEQ == df2.SHOPPING_ID) & (df1.PRODUCTCODE == df2.ITEM_CODE))
     login_df = (
         df1
         .filter(df1.LOGTYPE == 'login')
