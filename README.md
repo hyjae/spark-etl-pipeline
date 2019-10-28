@@ -29,7 +29,9 @@ jobs/etl_job.py
 ```
 
 yarn
+
 `https://spark.apache.org/docs/latest/running-on-yarn.html`
+
 ```bash
 $SPARK_HOME/bin/spark-submit \
 --master yarn \
