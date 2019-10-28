@@ -57,7 +57,6 @@ def main():
     save_db_info = config['mysql']['save']
     save_path = config['file']['save']['path']
     types = config['transform']
-    print(load_path)
 
     # execute ETL pipeline
 
