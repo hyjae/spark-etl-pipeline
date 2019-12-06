@@ -7,7 +7,7 @@ Need to install Python3.x beforehand
 pip3 install pipenv
 ```
 
-### Installing this Projects' Dependencies
+### Installing Dependencies
 
 Make sure that you're in the project's root directory (the same one in which the `Pipfile` resides), and then run,
 
